@@ -1,12 +1,17 @@
+"""
+This file contains some handy Python3 tkinter extensions.
+    DraggableWidget
+"""
 import tkinter as tk
 
 
 class DraggableWidget(tk.Widget):
     """
-    Inheriting from this class allows your object to automatically be draggable
+    Inheriting from this class allows your object to automatically be draggable if geometry is "place"
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._placed = False
         self._x = 0
         self._y = 0
         self._px = 0
@@ -15,11 +20,13 @@ class DraggableWidget(tk.Widget):
         self._dy = 0
         self._place_timer = None
         self._refresh = 10  # ms
-        label.bind("<1>", self.on_click)
-        label.bind("<B1-Motion>", self.on_move)
-        label.bind("<ButtonRelease-1>", self.on_stop)
+        self.bind("<1>", self.on_click)
+        self.bind("<B1-Motion>", self.on_move)
+        self.bind("<ButtonRelease-1>", self.on_stop)
 
     def on_click(self, event):
+        if not self._placed:
+            return
         self._x = self.winfo_x()
         self._y = self.winfo_y()
         self._px = self.winfo_pointerx()
@@ -27,10 +34,14 @@ class DraggableWidget(tk.Widget):
         self._place_again()
 
     def on_move(self, event):
+        if not self._placed:
+            return
         self._dx = self.winfo_pointerx() - self._px
         self._dy = self.winfo_pointery() - self._py
 
     def on_stop(self, event):
+        if not self._placed:
+            return
         if self._place_timer is not None:
             self.after_cancel(self._place_timer)
             self._place_timer = None
@@ -45,3 +56,27 @@ class DraggableWidget(tk.Widget):
         self.place_forget()
         self.place(x=self._x + self._dx, y=self._y + self._dy)
         self._place_timer = self.after(self._refresh, self._place_again)
+
+    def place(self, *args, **kwargs):
+        self._placed = True
+        super().place(*args, **kwargs)
+
+    def place_forget(self, *args, **kwargs):
+        self._placed = False
+        super().place_forget()
+
+
+class Test(DraggableWidget, tk.Label):
+    pass
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    frm1 = tk.Frame(root, height=300, width=600)
+    frm1.pack()
+    l = Test(frm1, text="placed!")
+    l.place(x=0, y=0)
+    frm2 = tk.Frame(root, height=300, width=600)
+    frm2.pack()
+    l1 = Test(frm2, text="packed!")
+    l1.pack()
+    root.mainloop()
