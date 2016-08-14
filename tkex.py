@@ -16,8 +16,6 @@ class DraggableWidget(tk.Widget):
         self._y = 0
         self._px = 0
         self._py = 0
-        self._dx = 0
-        self._dy = 0
         self._place_timer = None
         self._refresh = 10  # ms
         self.bind("<1>", self.on_click)
@@ -36,8 +34,12 @@ class DraggableWidget(tk.Widget):
     def on_move(self, event):
         if not self._placed:
             return
-        self._dx = self.winfo_pointerx() - self._px
-        self._dy = self.winfo_pointery() - self._py
+        px = self.winfo_pointerx()
+        py = self.winfo_pointery()
+        self._x += px - self._px
+        self._y += py - self._py
+        self._px = px
+        self._py = py
 
     def on_stop(self, event):
         if not self._placed:
@@ -46,15 +48,13 @@ class DraggableWidget(tk.Widget):
             self.after_cancel(self._place_timer)
             self._place_timer = None
             self.place_forget()
-            self.place(x=self._x + self._dx, y=self._y + self._dy)
+            self.place(x=self._x, y=self._y)
         self._x = self.winfo_x()
         self._y = self.winfo_y()
-        self._dx = 0
-        self._dy = 0
 
     def _place_again(self, event=None):
         self.place_forget()
-        self.place(x=self._x + self._dx, y=self._y + self._dy)
+        self.place(x=self._x, y=self._y)
         self._place_timer = self.after(self._refresh, self._place_again)
 
     def place(self, *args, **kwargs):
@@ -66,10 +66,11 @@ class DraggableWidget(tk.Widget):
         super().place_forget()
 
 
-class Test(DraggableWidget, tk.Label):
-    pass
-
 if __name__ == '__main__':
+    class Test(DraggableWidget, tk.Label):
+        pass
+
+
     root = tk.Tk()
     frm1 = tk.Frame(root, height=300, width=600)
     frm1.pack()
