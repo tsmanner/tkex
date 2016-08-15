@@ -1,6 +1,10 @@
 """
 This file contains some handy Python3 tkinter extensions.
-    DraggableWidget
+    Objects:
+        DraggableWidget
+
+    Systems:
+        Drop - New geometry manager that lets a user "drop" a window at
 """
 import tkinter as tk
 
@@ -14,6 +18,8 @@ class DraggableWidget(tk.Widget):
         self._placed = False
         self._x = 0
         self._y = 0
+        self._last_x = 0
+        self._last_y = 0
         self._px = 0
         self._py = 0
         self._place_timer = None
@@ -27,6 +33,8 @@ class DraggableWidget(tk.Widget):
             return
         self._x = self.winfo_x()
         self._y = self.winfo_y()
+        self._last_x = self._x
+        self._last_y = self._y
         self._px = self.winfo_pointerx()
         self._py = self.winfo_pointery()
         self._place_again()
@@ -53,8 +61,11 @@ class DraggableWidget(tk.Widget):
         self._y = self.winfo_y()
 
     def _place_again(self, event=None):
-        self.place_forget()
-        self.place(x=self._x, y=self._y)
+        if self._x != self._last_x or self._y != self._last_y:
+            self.place_forget()
+            self.place(x=self._x, y=self._y)
+            self._last_x = self._x
+            self._last_y = self._y
         self._place_timer = self.after(self._refresh, self._place_again)
 
     def place(self, *args, **kwargs):
@@ -66,13 +77,26 @@ class DraggableWidget(tk.Widget):
         super().place_forget()
 
 
+"""
+Drop Geometry Manager.  Uses place under the covers and the DraggableWidget base class.
+"""
+
+
+class DroppableWidget(tk.Widget):
+    """
+    Inheriting from this class allows your object to be "dropped" into it's master
+    """
+    def drop(self):
+        pass
+
+
 if __name__ == '__main__':
     class Test(DraggableWidget, tk.Label):
         pass
 
 
     root = tk.Tk()
-    frm1 = tk.Frame(root, height=300, width=600)
+    frm1 = tk.Label(root, height=30, width=60)
     frm1.pack()
     l = Test(frm1, text="placed!")
     l.place(x=0, y=0)
