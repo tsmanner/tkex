@@ -8,12 +8,15 @@ This file contains some handy Python3 tkinter extensions.
 """
 import tkinter as tk
 import math
+from matplotlib.path import Path
+import numpy as np
 
 
 class DraggableWidget(tk.Widget):
     """
     Inheriting from this class allows your object to automatically be draggable if geometry is "place"
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._placed = False
@@ -87,15 +90,29 @@ class DroppableWidget(DraggableWidget):
     """
     Inheriting from this class allows your object to be "dropped" into it's master and dragged into position
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def drop(self):
         self.master.update_idletasks()
-        x = y = 0
-        print(self.master.winfo_rootx(), self.master.winfo_rootx() + self.master.winfo_reqwidth(),
-              self.master.winfo_rooty(), self.master.winfo_rooty() + self.master.winfo_reqheight())
-        widgets = set()
+        # self.scan()
+        poly = None
+        for child in self.master.children.values():
+            if child is not self:
+                coords = ((child.winfo_x(), child.winfo_y()),
+                          (child.winfo_x() + child.winfo_reqwidth(), child.winfo_y() + child.winfo_reqheight()))
+                this_poly = Path([(coords[0][0], coords[0][1]),
+                                  (coords[0][0], coords[1][1]),
+                                  (coords[1][0], coords[1][1]),
+                                  (coords[1][0], coords[0][1])])
+                if poly:
+                    poly = Path.make_compound_path(poly, this_poly)
+                else:
+                    poly = this_poly
+        self.place(x=0, y=0)
+
+    def scan(self):
         r_max = round(math.sqrt((self.master.winfo_reqwidth() ** 2 + self.master.winfo_reqheight() ** 2)))
         theta_max = math.pi / 2
         scanned = set()
@@ -109,20 +126,7 @@ class DroppableWidget(DraggableWidget):
                 ry = round(r * math.sin(theta))
                 scanned.add((rx, ry))
                 print(r, round(theta, 2), rx, ry)
-#                hit_widget = self.master.winfo_containing(i, j)
-#                if hit_widget not in [None, self, self.master] and hit_widget not in self.master.children.keys():
-#                    widgets.add(self.master.winfo_containing(i, j))
         print(set(zip(range(0, self.master.winfo_reqwidth()), range(0, self.master.winfo_reqheight()))) - scanned)
-        print(widgets)
-        [print(widget.name) for widget in widgets]
-        for k in self.master.children:
-            child = self.master.children[k]
-            if child is not self:
-                if x + self.winfo_reqwidth() > child.winfo_x():
-                    x = child.winfo_x() + child.winfo_reqwidth()
-                if y + self.winfo_reqheight() > child.winfo_y():
-                    y = child.winfo_y() + child.winfo_reqheight()
-        self.place(x=x, y=y)
 
     def print(self, event=None):
         print(self.winfo_x(), self.winfo_y())
@@ -132,20 +136,22 @@ if __name__ == '__main__':
     class Test(DroppableWidget, tk.Label):
         pass
 
+
     class TestMaster(tk.Frame):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.new_item_button = tk.Button(self, text="new", command=self.create_new_label)
             self.new_item_button.pack()
-            self.label_frame = tk.Frame(self, height=50, width=50)
+            self.label_frame = tk.Frame(self, height=150, width=150)
             self.label_frame.pack()
             self.labels = []
 
         def create_new_label(self):
-            name = "test"+str(len(self.labels))
+            name = "test" + str(len(self.labels))
             self.labels.append(Test(self.label_frame, text=name))
             self.labels[-1].name = name
             self.labels[-1].drop()
+
 
     root = tk.Tk()
     tm = TestMaster(root)
