@@ -9,7 +9,6 @@ This file contains some handy Python3 tkinter extensions.
 import tkinter as tk
 import math
 from matplotlib.path import Path
-import numpy as np
 
 
 class DraggableWidget(tk.Widget):
@@ -35,6 +34,7 @@ class DraggableWidget(tk.Widget):
     def on_click(self, event):
         if not self._placed:
             return
+        self.tkraise()
         self._x = self.winfo_x()
         self._y = self.winfo_y()
         self._last_x = self._x
@@ -67,6 +67,16 @@ class DraggableWidget(tk.Widget):
     def _place_again(self, event=None):
         if self._x != self._last_x or self._y != self._last_y:
             self.place_forget()
+            max_x = self.master.winfo_reqwidth() - self.winfo_reqwidth() + 5
+            max_y = self.master.winfo_reqheight() - self.winfo_reqheight() + 5
+            if self._x > max_x:
+                self._x = max_x
+            if self._x < -5:
+                self._x = -5
+            if self._y > max_y:
+                self._y = max_y
+            if self._y < -5:
+                self._y = -5
             self.place(x=self._x, y=self._y)
             self._last_x = self._x
             self._last_y = self._y
@@ -81,6 +91,88 @@ class DraggableWidget(tk.Widget):
         super().place_forget()
 
 
+class SeriesWidget(DraggableWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert isinstance(self.master, Series)
+
+    def on_stop(self, *args, **kwargs):
+        super().on_stop(*args, **kwargs)
+        self.master.cleanup()
+
+
+"""
+Tk Series.  Basically a list of tk widgets displayed in order, either horizontally or vertically.
+"""
+
+
+class Series(tk.Frame):
+    def __init__(self, *args, orientation=None, **kwargs):
+        if orientation is None:
+            raise ValueError("No orientation provided")
+        elif orientation not in [tk.HORIZONTAL, tk.VERTICAL]:
+            raise ValueError("Invalid orientation provided, must be tkinter.HORIZONTAL or tkinter.VERTICAL")
+        tk.Frame.__init__(self, *args, **kwargs)
+        self.series = []
+        self.orientation = orientation
+        if orientation == tk.HORIZONTAL:
+            self.sort_function = lambda w: w.winfo_x()
+        else:
+            self.sort_function = lambda w: w.winfo_y()
+
+    def append(self, p_object):
+        self.update_idletasks()
+        x = y = 0
+        height = p_object.winfo_reqheight()
+        width = p_object.winfo_reqwidth()
+        for widget in self.series:
+            assert isinstance(widget, tk.Widget)
+            if self.orientation == tk.HORIZONTAL:
+                x += widget.winfo_reqwidth()
+                if height < widget.winfo_reqheight():
+                    height = widget.winfo_reqheight()
+            else:
+                y += widget.winfo_reqheight()
+                if width < widget.winfo_reqwidth():
+                    width = widget.winfo_reqwidth()
+        self.series.append(p_object)
+        p_object.place(x=x, y=y)
+        self.config(width=x+width, height=y+height)
+
+    def pack(self, *args, **kwargs):
+        super().pack(*args, **kwargs)
+        self.cleanup()
+
+    def place(self, *args, **kwargs):
+        super().place(*args, **kwargs)
+        self.cleanup()
+
+    def grid(self, *args, **kwargs):
+        super().grid(*args, **kwargs)
+        self.cleanup()
+
+    def cleanup(self):
+        x = y = 0
+        self.series.sort(key=self.sort_function)
+        for widget in self.series:
+            widget.place_forget()
+            widget.place(x=x, y=y)
+            if self.orientation == tk.HORIZONTAL:
+                x += widget.winfo_reqwidth()
+            else:
+                y += widget.winfo_reqheight()
+
+
+class Row(Series):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, orientation=tk.HORIZONTAL, **kwargs)
+
+
+class Column(Series):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, orientation=tk.VERTICAL, **kwargs)
+
+
 """
 Drop Geometry Manager.  Uses place under the covers and the DraggableWidget base class.
 """
@@ -89,6 +181,11 @@ Drop Geometry Manager.  Uses place under the covers and the DraggableWidget base
 class DroppableWidget(DraggableWidget):
     """
     Inheriting from this class allows your object to be "dropped" into it's master and dragged into position
+    Design Notes:
+        Make drop place the widget at the current location then cause a window cleanup.
+        Window cleanup will go around the screen and push widgets around until they don't overlap.
+            1 - is the widget Top/Left most by center? That's the anchor(specify the anchor with tk vars?)
+            2 -
     """
 
     def __init__(self, *args, **kwargs):
@@ -133,24 +230,29 @@ class DroppableWidget(DraggableWidget):
 
 
 if __name__ == '__main__':
-    class Test(DroppableWidget, tk.Label):
+    import random
+
+
+    class Test(SeriesWidget, tk.Button):
         pass
 
 
     class TestMaster(tk.Frame):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.new_item_button = tk.Button(self, text="new", command=self.create_new_label)
-            self.new_item_button.pack()
-            self.label_frame = tk.Frame(self, height=150, width=150)
-            self.label_frame.pack()
-            self.labels = []
+            self.new_item_button = tk.Button(self, text="new", command=self.create_new_label, height=8, width=15)
+            self.new_item_button.pack(anchor=tk.W)
+            self.labels = Row(self, width=50)
+            self.labels.pack()
 
         def create_new_label(self):
-            name = "test" + str(len(self.labels))
-            self.labels.append(Test(self.label_frame, text=name))
-            self.labels[-1].name = name
-            self.labels[-1].drop()
+            name = "AA<" + str(len(self.labels.series)) + ">"
+            colors = ["dark red", "orange", "yellow", "dark green", "blue", "violet"]
+            color = colors[random.randint(0, len(colors) - 1)]
+            new_test = Test(master=self.labels, text=name, width=10, height=5, bg=color)
+            new_test.config(command=lambda: print(new_test.name))
+            new_test.name = name
+            self.labels.append(new_test)
 
 
     root = tk.Tk()
